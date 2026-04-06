@@ -1,0 +1,89 @@
+{
+  "name": "@nurbak/watch",
+  "version": "1.0.0",
+  "description": "Lightweight monitoring SDK for Next.js API routes and Server Actions",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "nurbak-watch": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.2",
+    "vitest": "^3.2.4"
+  },
+  "peerDependencies": {
+    "next": ">=13.4.0"
+  },
+  "license": "MIT",
+  "author": "Nurbak <support@nurbak.com> (https://nurbak.com)",
+  "homepage": "https://nurbak.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nurbak/nurbak-watch-nextjs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nurbak/nurbak-watch-nextjs/issues"
+  },
+  "keywords": [
+    "nextjs",
+    "next.js",
+    "api-monitoring",
+    "api monitoring",
+    "monitoring",
+    "uptime",
+    "uptime monitoring",
+    "observability",
+    "instrumentation",
+    "instrumentation.ts",
+    "vercel",
+    "serverless monitoring",
+    "api health check",
+    "health check",
+    "latency",
+    "p95",
+    "p99",
+    "error rate",
+    "api alerts",
+    "slack alerts",
+    "whatsapp alerts",
+    "datadog alternative",
+    "new relic alternative",
+    "apm",
+    "performance monitoring",
+    "api performance",
+    "endpoint monitoring",
+    "rest api monitoring",
+    "api gateway monitoring",
+    "cold start",
+    "mttd",
+    "incident detection",
+    "webhook monitoring",
+    "api error tracking",
+    "real-time alerts",
+    "devtools",
+    "developer tools"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}
