@@ -1,6 +1,6 @@
 {
   "name": "@nurbak/watch",
-  "version": "1.0.0",
+  "version": "1.5.10",
   "description": "Lightweight monitoring SDK for Next.js API routes and Server Actions",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -18,7 +18,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "vitest"
+    "test": "vitest",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

@@ -86,7 +86,7 @@ Auto-discovers routes | Partial   | Partial      | Yes
 
 ## Get your API key
 
-1. Go to https://nurbak.com
+1. Go to https://watch.nurbak.com
 2. Create a free account
 3. Add your project
 4. Copy your NURBAK_WATCH_KEY
