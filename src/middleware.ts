@@ -5,9 +5,9 @@
  * route handlers in Next.js 16 (confirmed via debug logs on Vercel).
  * This middleware provides an alternative capture mechanism.
  *
- * Sends events directly via fetch (not through the shared queue)
- * because middleware and instrumentation.ts run in separate runtimes
- * on Vercel and cannot share in-memory state.
+ * Uses after() from next/server to flush events after the response
+ * is sent, preventing Vercel from freezing the container before
+ * the flush completes.
  *
  * Usage:
  *   // middleware.ts
@@ -16,7 +16,7 @@
  *   export const config = { matcher: '/api/:path*' };
  */
 
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 interface MiddlewareEvent {
@@ -104,7 +104,7 @@ async function sendEvent(event: MiddlewareEvent): Promise<void> {
   const ingestUrl = getIngestUrl();
   const payload = {
     batch_id: crypto.randomUUID(),
-    sdk_version: '0.0.0', // injected at build time
+    sdk_version: '0.0.0',
     events: [event],
   };
 
@@ -158,8 +158,12 @@ export function withNurbakMiddleware(middleware?: MiddlewareFunction) {
       ...(process.env.VERCEL_REGION ? { region: process.env.VERCEL_REGION } : {}),
     };
 
-    // Fire and forget — never block the response
-    sendEvent(event).catch(() => {});
+    // Use after() to send the event AFTER the response is sent.
+    // This prevents Vercel from freezing the container before the
+    // flush HTTP request completes (~1-2s network round-trip).
+    after(async () => {
+      await sendEvent(event);
+    });
 
     return response;
   };

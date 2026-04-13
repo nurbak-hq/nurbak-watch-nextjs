@@ -233,7 +233,13 @@ function trackIncomingApiRequest(request: IncomingMessage, response: ServerRespo
       ...(errorMessage ? { errorMessage } : {}),
     };
 
-    enqueueEvent(event).catch(() => {});
+    const promise = enqueueEvent(event);
+    const g = globalThis as typeof globalThis & { waitUntil?: (p: Promise<unknown>) => void };
+    if (typeof g.waitUntil === 'function') {
+      g.waitUntil(promise);
+    } else {
+      promise.catch(() => {});
+    }
   };
 
   request.once('error', rememberError);
