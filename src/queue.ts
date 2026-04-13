@@ -31,16 +31,13 @@ export async function enqueueEvent(event: ApiCallEvent): Promise<void> {
   }
   
   eventQueue.push(event);
-  
+
   debugLog(config.debug, `Event enqueued: ${event.eventType} ${event.path} (${event.durationMs}ms)`);
   debugLog(config.debug, `Current queue: ${eventQueue.length} events`);
-  
-  // Check if we need to flush due to batch size
-  if (eventQueue.length >= config.maxBatchSize) {
-    debugLog(config.debug, `Flush triggered by max batch size: ${eventQueue.length} events`);
-    await flush();
-  }
-  
+
+  // Flush immediately after every enqueue for serverless compatibility
+  // (setInterval does not fire reliably on Vercel/Lambda)
+  await flush();
 }
 
 export async function flush(): Promise<void> {
@@ -69,12 +66,9 @@ export async function flush(): Promise<void> {
   };
   
   debugLog(config.debug, `Flush: ${eventsToSend.length} events -> ${config.ingestUrl}`);
-  
-  // In serverless (Vercel, Lambda), re-queuing failed events is useless
-  // because the container freezes and the queue is lost. Instead, retry
-  // inline with a short delay if we get a 429.
+
   const maxAttempts = 3;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const result = await sendBatch(config.ingestUrl, config.apiKey, payload);
 
@@ -90,25 +84,21 @@ export async function flush(): Promise<void> {
 
       nextFlushAllowedAt = 0;
       debugLog(config.debug, `Flush: ${eventsToSend.length} events sent successfully`);
-      return;
+      return; // success — exit
     } catch (error) {
-      debugLog(config.debug, `Flush attempt ${attempt + 1} failed:`, error instanceof Error ? error.message : error);
+      debugLog(config.debug, `Flush attempt ${attempt}/${maxAttempts} failed:`, error instanceof Error ? error.message : error);
 
-      if (error instanceof HttpStatusError && error.status === 429) {
-        // Wait 1.1s (just above the Lambda min_interval_ms of 1000ms)
-        // then retry so the event isn't lost in serverless.
-        if (attempt < maxAttempts - 1) {
-          debugLog(config.debug, `Rate limited. Retrying in 1.1s (attempt ${attempt + 2}/${maxAttempts})`);
-          await new Promise(resolve => setTimeout(resolve, 1100));
-          continue;
-        }
+      if (error instanceof HttpStatusError && error.status === 429 && attempt < maxAttempts) {
+        debugLog(config.debug, `Rate limited (429). Retrying in 1100ms...`);
+        await new Promise(resolve => setTimeout(resolve, 1100));
+        continue;
       }
 
-      // Final attempt failed or non-429 error: re-queue as last resort
-      // (helps in long-running servers, lost in serverless — acceptable)
-      eventQueue = [...eventsToSend, ...eventQueue].slice(0, 1000);
-      debugLog(config.debug, `Flush failed after ${attempt + 1} attempts. ${eventsToSend.length} events re-queued.`);
-      return;
+      if (attempt === maxAttempts) {
+        // Re-queue failed events only after all attempts exhausted
+        eventQueue = [...eventsToSend, ...eventQueue].slice(0, 1000);
+        debugLog(config.debug, `All ${maxAttempts} attempts failed. ${eventsToSend.length} events re-queued.`);
+      }
     }
   }
 }
