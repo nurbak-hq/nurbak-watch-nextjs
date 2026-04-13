@@ -12,9 +12,28 @@ interface QueueConfig {
 }
 
 let eventQueue: ApiCallEvent[] = [];
-let flushTimer: NodeJS.Timeout | null = null;
+let flushTimer: ReturnType<typeof setInterval> | null = null;
 let config: QueueConfig | null = null;
 let nextFlushAllowedAt = 0;
+
+// Dedup: track recently seen events to prevent duplicates when both
+// middleware and HTTP interceptor capture the same request.
+const recentEventKeys = new Set<string>();
+const DEDUP_WINDOW_MS = 5000;
+
+function eventKey(event: ApiCallEvent): string {
+  return `${event.method}:${event.path}:${event.startedAt}`;
+}
+
+function isDuplicate(event: ApiCallEvent): boolean {
+  const key = eventKey(event);
+  if (recentEventKeys.has(key)) {
+    return true;
+  }
+  recentEventKeys.add(key);
+  setTimeout(() => recentEventKeys.delete(key), DEDUP_WINDOW_MS);
+  return false;
+}
 
 export function initQueue(cfg: QueueConfig): void {
   config = cfg;
@@ -24,11 +43,16 @@ export function initQueue(cfg: QueueConfig): void {
 export async function enqueueEvent(event: ApiCallEvent): Promise<void> {
   if (!config) return;
 
+  if (isDuplicate(event)) {
+    debugLog(config.debug, `Duplicate skipped: ${event.method} ${event.path}`);
+    return;
+  }
+
   if (eventQueue.length >= 1000) {
     const discarded = eventQueue.splice(0, eventQueue.length - 999);
     debugLog(config.debug, `Queue full (${eventQueue.length + discarded.length} events). Dropping ${discarded.length} oldest events`);
   }
-  
+
   eventQueue.push(event);
 
   debugLog(config.debug, `Event enqueued: ${event.eventType} ${event.path} (${event.durationMs}ms)`);
@@ -104,6 +128,16 @@ export async function flush(): Promise<void> {
 
 export function getQueueSize(): number {
   return eventQueue.length;
+}
+
+/** @internal — for tests only */
+export function _resetQueue(): void {
+  eventQueue = [];
+  if (flushTimer) clearInterval(flushTimer);
+  flushTimer = null;
+  config = null;
+  nextFlushAllowedAt = 0;
+  recentEventKeys.clear();
 }
 
 function createBatchId(): string {

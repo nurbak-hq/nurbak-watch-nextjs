@@ -6,3 +6,5 @@ dist/
 .DS_Store
 PUBLISH.md
 test-install.sh
+demo-prepare.sh
+.claude/
