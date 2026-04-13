@@ -31,18 +31,16 @@ export async function enqueueEvent(event: ApiCallEvent): Promise<void> {
   }
   
   eventQueue.push(event);
-
+  
   debugLog(config.debug, `Event enqueued: ${event.eventType} ${event.path} (${event.durationMs}ms)`);
   debugLog(config.debug, `Current queue: ${eventQueue.length} events`);
-
-  // Flush immediately after every enqueue. In serverless environments
-  // (Vercel, AWS Lambda) the process freezes between invocations so
-  // setInterval-based flushing is unreliable. The Lambda rate limiter
-  // (min_interval_ms) already prevents flooding. If a flush is
-  // rate-limited (nextFlushAllowedAt guard), events stay in the queue
-  // and go out on the next request's flush.
-  await flush();
-
+  
+  // Check if we need to flush due to batch size
+  if (eventQueue.length >= config.maxBatchSize) {
+    debugLog(config.debug, `Flush triggered by max batch size: ${eventQueue.length} events`);
+    await flush();
+  }
+  
 }
 
 export async function flush(): Promise<void> {
@@ -72,32 +70,46 @@ export async function flush(): Promise<void> {
   
   debugLog(config.debug, `Flush: ${eventsToSend.length} events -> ${config.ingestUrl}`);
   
-  try {
-    const result = await sendBatch(config.ingestUrl, config.apiKey, payload);
+  // In serverless (Vercel, Lambda), re-queuing failed events is useless
+  // because the container freezes and the queue is lost. Instead, retry
+  // inline with a short delay if we get a 429.
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const result = await sendBatch(config.ingestUrl, config.apiKey, payload);
 
-    if (
-      typeof result.flushIntervalMs === 'number' &&
-      result.flushIntervalMs > 0 &&
-      result.flushIntervalMs !== config.flushInterval
-    ) {
-      config.flushInterval = result.flushIntervalMs;
-      startFlushTimer(config.flushInterval);
-      debugLog(config.debug, `Flush interval updated from server: ${config.flushInterval}ms`);
+      if (
+        typeof result.flushIntervalMs === 'number' &&
+        result.flushIntervalMs > 0 &&
+        result.flushIntervalMs !== config.flushInterval
+      ) {
+        config.flushInterval = result.flushIntervalMs;
+        startFlushTimer(config.flushInterval);
+        debugLog(config.debug, `Flush interval updated from server: ${config.flushInterval}ms`);
+      }
+
+      nextFlushAllowedAt = 0;
+      debugLog(config.debug, `Flush: ${eventsToSend.length} events sent successfully`);
+      return;
+    } catch (error) {
+      debugLog(config.debug, `Flush attempt ${attempt + 1} failed:`, error instanceof Error ? error.message : error);
+
+      if (error instanceof HttpStatusError && error.status === 429) {
+        // Wait 1.1s (just above the Lambda min_interval_ms of 1000ms)
+        // then retry so the event isn't lost in serverless.
+        if (attempt < maxAttempts - 1) {
+          debugLog(config.debug, `Rate limited. Retrying in 1.1s (attempt ${attempt + 2}/${maxAttempts})`);
+          await new Promise(resolve => setTimeout(resolve, 1100));
+          continue;
+        }
+      }
+
+      // Final attempt failed or non-429 error: re-queue as last resort
+      // (helps in long-running servers, lost in serverless — acceptable)
+      eventQueue = [...eventsToSend, ...eventQueue].slice(0, 1000);
+      debugLog(config.debug, `Flush failed after ${attempt + 1} attempts. ${eventsToSend.length} events re-queued.`);
+      return;
     }
-
-    nextFlushAllowedAt = 0;
-    debugLog(config.debug, `Flush: ${eventsToSend.length} events sent successfully`);
-  } catch (error) {
-    debugLog(config.debug, 'Flush failed:', error instanceof Error ? error.message : error);
-
-    if (error instanceof HttpStatusError && error.status === 429) {
-      const waitMs = Math.max(config.flushInterval, 1000);
-      nextFlushAllowedAt = Date.now() + waitMs;
-      debugLog(config.debug, `Rate limit received (429). Waiting for next scheduled flush in ${waitMs}ms`);
-    }
-
-    // Re-queue failed events (at the front) to avoid dropping telemetry.
-    eventQueue = [...eventsToSend, ...eventQueue].slice(0, 1000);
   }
 }
 

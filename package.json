@@ -1,6 +1,6 @@
 {
   "name": "@nurbak/watch",
-  "version": "1.5.10",
+  "version": "1.1.2",
   "description": "Lightweight monitoring SDK for Next.js API routes and Server Actions",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
