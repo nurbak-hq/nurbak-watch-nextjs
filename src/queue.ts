@@ -31,16 +31,18 @@ export async function enqueueEvent(event: ApiCallEvent): Promise<void> {
   }
   
   eventQueue.push(event);
-  
+
   debugLog(config.debug, `Event enqueued: ${event.eventType} ${event.path} (${event.durationMs}ms)`);
   debugLog(config.debug, `Current queue: ${eventQueue.length} events`);
-  
-  // Check if we need to flush due to batch size
-  if (eventQueue.length >= config.maxBatchSize) {
-    debugLog(config.debug, `Flush triggered by max batch size: ${eventQueue.length} events`);
-    await flush();
-  }
-  
+
+  // Flush immediately after every enqueue. In serverless environments
+  // (Vercel, AWS Lambda) the process freezes between invocations so
+  // setInterval-based flushing is unreliable. The Lambda rate limiter
+  // (min_interval_ms) already prevents flooding. If a flush is
+  // rate-limited (nextFlushAllowedAt guard), events stay in the queue
+  // and go out on the next request's flush.
+  await flush();
+
 }
 
 export async function flush(): Promise<void> {
