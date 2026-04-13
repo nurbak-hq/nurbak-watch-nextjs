@@ -28,7 +28,9 @@ npm install @nurbak/watch
 
 ## Setup
 
-Add 5 lines to your instrumentation.ts file:
+Two files. That's it.
+
+### 1. instrumentation.ts
 
 import { initWatch } from '@nurbak/watch'
 
@@ -38,7 +40,28 @@ export function register() {
   })
 }
 
-That's it. Every API route is now monitored automatically.
+### 2. middleware.ts
+
+import { withNurbakMiddleware } from '@nurbak/watch'
+
+export default withNurbakMiddleware()
+
+export const config = { matcher: '/api/:path*' }
+
+If you already have a middleware, wrap it:
+
+import { withNurbakMiddleware } from '@nurbak/watch'
+
+function myMiddleware(request) {
+  // your existing logic
+  return NextResponse.next()
+}
+
+export default withNurbakMiddleware(myMiddleware)
+
+export const config = { matcher: '/api/:path*' }
+
+Every API route is now monitored automatically.
 
 ## What you get
 

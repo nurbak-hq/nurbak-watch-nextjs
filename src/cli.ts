@@ -24,6 +24,13 @@ export async function register() {
 }
 `
 
+const MIDDLEWARE_CODE = `import { withNurbakMiddleware } from '@nurbak/watch'
+
+export default withNurbakMiddleware()
+
+export const config = { matcher: '/api/:path*' }
+`
+
 const NEXT_CONFIG_SNIPPET = `// next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -119,6 +126,21 @@ function createInstrumentationFile(project: ProjectInfo): string {
   return filePath
 }
 
+function createMiddlewareFile(project: ProjectInfo): string {
+  const ext = project.useTs ? "ts" : "js"
+  const dir = project.useSrc ? "src" : "."
+  const filePath = join(dir, `middleware.${ext}`)
+
+  if (existsSync(filePath)) {
+    warn(`${filePath} already exists — add withNurbakMiddleware manually`)
+    return filePath
+  }
+
+  writeFileSync(filePath, MIDDLEWARE_CODE)
+  success(`Created ${filePath}`)
+  return filePath
+}
+
 function addEnvVar(key: string, value: string): void {
   const envFile = ".env.local"
   let content = ""
@@ -194,8 +216,9 @@ async function main() {
   const isTestKey = apiKey.startsWith("nw_test_")
   const envVarName = isTestKey ? "NURBAK_WATCH_KEY_TEST" : "NURBAK_WATCH_KEY_LIVE"
 
-  // Step 3: Create instrumentation file
+  // Step 3: Create instrumentation + middleware files
   createInstrumentationFile(project)
+  createMiddlewareFile(project)
 
   // Step 4: Add env var
   addEnvVar(envVarName, apiKey)

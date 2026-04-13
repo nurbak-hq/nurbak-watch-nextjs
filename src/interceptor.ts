@@ -131,7 +131,6 @@ function installIncomingApiInterceptor(cfg: { debug: boolean; sampleRate: number
       if (eventName === 'request') {
         const request = args[0] as IncomingMessage | undefined;
         const response = args[1] as ServerResponse | undefined;
-        debugLog(true, `[interceptor] http.Server emit('request') url=${request?.url}`);
 
         if (request && response) {
           trackIncomingApiRequest(request, response);
@@ -160,12 +159,10 @@ function installIncomingApiInterceptor(cfg: { debug: boolean; sampleRate: number
 
 function trackIncomingApiRequest(request: IncomingMessage, response: ServerResponse): void {
   if (!config) {
-    debugLog(true, `[interceptor] trackIncomingApiRequest called but no config`);
     return;
   }
 
   const route = getRoutePath(request.url || '/');
-  debugLog(config.debug, `[interceptor] request received: ${request.method} ${route}`);
 
   if (!route.startsWith('/api')) {
     return;
@@ -211,7 +208,6 @@ function trackIncomingApiRequest(request: IncomingMessage, response: ServerRespo
     }
 
     completed = true;
-    debugLog(config?.debug ?? false, `[interceptor] finalize: ${method} ${route} aborted=${aborted} status=${response.statusCode}`);
 
     const statusCode = aborted ? Math.max(response.statusCode || 0, 499) : response.statusCode || 200;
     const responseBytes = parseContentLength(response.getHeader('content-length'));
