@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { HttpStatusError, sendBatch } from './transport';
 import { ApiCallEvent, BatchPayload } from './types';
 import { debugLog } from './utils';
@@ -108,7 +107,11 @@ export function getQueueSize(): number {
 }
 
 function createBatchId(): string {
-  return randomUUID();
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for older Node.js without Web Crypto API
+  return require('crypto').randomUUID();
 }
 
 function startFlushTimer(intervalMs: number): void {
